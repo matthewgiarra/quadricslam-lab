@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>QuadricSLAM lab</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="view"></div>
+  <div id="minimap"><div class="tag">path · object frame</div></div>
+  <div id="hud">
+    <div>detections <b id="nobs">0</b></div>
+    <div>rms <b id="rms">—</b></div>
+    <div>rate <b id="rate">—</b> Hz</div>
+    <div id="status" class="bad">solver idle</div>
+  </div>
+  <div id="hint">click to capture mouse · WASD move · QE up/down · Shift sprint · Esc release</div>
+
+  <aside id="panel">
+    <h1>QuadricSLAM lab</h1>
+    <div class="sub">Joint ellipsoid + stereo-rig pose from 2D detections. Solver is Python; this page only flies and extracts silhouettes.</div>
+
+    <h2>Object</h2>
+    <label class="stack">primitive
+      <select id="primitive">
+        <option value="ellipsoid">tri-axial ellipsoid</option>
+        <option value="box">box</option>
+        <option value="glb">loaded GLB</option>
+      </select>
+    </label>
+    <label class="stack">load GLB
+      <input type="file" id="glb" accept=".glb,.gltf" />
+    </label>
+
+    <h2>Camera</h2>
+    <label class="row"><span>focal length</span>
+      <input type="range" id="focal" min="18" max="85" step="1" value="50" />
+      <span class="val" id="focalV">50 mm</span>
+    </label>
+    <label class="row"><span>baseline</span>
+      <input type="range" id="baseline" min="0.02" max="0.40" step="0.01" value="0.10" />
+      <span class="val" id="baselineV">0.10 m</span>
+    </label>
+    <label class="row"><span>sensor</span>
+      <select id="sensor">
+        <option value="11.313708" selected>1″ format square crop</option>
+        <option value="25.4">1″ square</option>
+      </select>
+    </label>
+
+    <h2>Detector</h2>
+    <label class="row"><span>detections / s</span>
+      <input type="range" id="hz" min="0.1" max="30" step="0.1" value="5" />
+      <span class="val" id="hzV">5.0</span>
+    </label>
+    <div class="radios">
+      <label><input type="radio" name="kind" value="aabb" checked /> axis-aligned box</label>
+      <label><input type="radio" name="kind" value="obb" /> oriented box</label>
+      <label><input type="radio" name="kind" value="hull" /> convex hull (from mask)</label>
+    </div>
+    <label class="row"><span>box jitter</span>
+      <input type="range" id="jitter" min="0" max="25" step="0.5" value="0" />
+      <span class="val" id="jitterV">0 px</span>
+    </label>
+    <label class="row"><span>disparity noise</span>
+      <input type="range" id="dnoise" min="0" max="15" step="0.5" value="0" />
+      <span class="val" id="dnoiseV">0 px</span>
+    </label>
+    <label class="row"><span>box dropout</span>
+      <input type="range" id="drop" min="0" max="80" step="1" value="0" />
+      <span class="val" id="dropV">0%</span>
+    </label>
+    <label class="row"><span>depth dropout</span>
+      <input type="range" id="ddrop" min="0" max="80" step="1" value="0" />
+      <span class="val" id="ddropV">0%</span>
+    </label>
+    <label class="row"><span>run detector</span>
+      <input type="checkbox" id="armed" checked />
+    </label>
+
+    <h2>Overlays</h2>
+    <div class="checks">
+      <label><input type="checkbox" id="showGtEll" checked /> <span class="swatch gt"></span> ground-truth ellipsoid</label>
+      <label><input type="checkbox" id="showEstEll" checked /> <span class="swatch est"></span> estimated ellipsoid</label>
+      <label><input type="checkbox" id="showGtAx" checked /> <span class="swatch gt"></span> ground-truth axes</label>
+      <label><input type="checkbox" id="showEstAx" checked /> <span class="swatch est"></span> estimated axes</label>
+      <label><input type="checkbox" id="showGtPath" checked /> <span class="swatch gt"></span> ground-truth path</label>
+      <label><input type="checkbox" id="showEstPath" checked /> <span class="swatch est"></span> estimated path</label>
+      <label><input type="checkbox" id="showDet" checked /> last detection</label>
+    </div>
+
+    <h2>Estimator</h2>
+    <button class="primary" id="reset">reset pose estimate</button>
+    <div class="sub" style="margin-top:8px">clears solver history; does not move the camera</div>
+  </aside>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
