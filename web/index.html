@@ -7,18 +7,17 @@
 </head>
 <body>
   <div id="view"></div>
-  <div id="minimap"><div class="tag">path · object frame</div></div>
+  <div id="minimap"><div class="tag">path · world</div></div>
   <div id="hud">
     <div>detections <b id="nobs">0</b></div>
-    <div>rms <b id="rms">—</b></div>
     <div>rate <b id="rate">—</b> Hz</div>
-    <div id="status" class="bad">solver idle</div>
+    <div id="status" class="bad">stream disconnected</div>
   </div>
-  <div id="hint">click to capture mouse · WASD move · QE up/down · Shift sprint · Esc release</div>
+  <div id="hint">click to capture mouse · WASD move · QE up/down · Shift sprint · Esc release · orbit in the panel</div>
 
   <aside id="panel">
     <h1>QuadricSLAM lab</h1>
-    <div class="sub">Joint ellipsoid + stereo-rig pose from 2D detections. Solver is Python; this page only flies and extracts silhouettes.</div>
+    <div class="sub">Sensor simulator. Flies a camera, extracts silhouettes, and publishes measurements with ground truth. The estimator runs in a separate process.</div>
 
     <h2>Object</h2>
     <label class="stack">primitive
@@ -31,22 +30,35 @@
     <label class="stack">load GLB
       <input type="file" id="glb" accept=".glb,.gltf" />
     </label>
+    <label class="row"><span>longest side (m)</span>
+      <input type="number" id="glbLength" min="0.01" step="0.1" value="0.8" disabled />
+    </label>
 
     <h2>Camera</h2>
-    <label class="row"><span>focal length</span>
+    <label class="row"><span>focal length (mm)</span>
+      <input type="number" id="focalN" step="1" value="50" />
+    </label>
+    <div class="tune-ends">
+      <input type="number" id="focalMin" step="1" value="18" />
       <input type="range" id="focal" min="18" max="85" step="1" value="50" />
-      <span class="val" id="focalV">50 mm</span>
+      <input type="number" id="focalMax" step="1" value="85" />
+    </div>
+    <label class="row"><span>baseline (m)</span>
+      <input type="number" id="baselineN" step="0.01" value="0.10" />
     </label>
-    <label class="row"><span>baseline</span>
+    <div class="tune-ends">
+      <input type="number" id="baselineMin" step="0.01" value="0.02" />
       <input type="range" id="baseline" min="0.02" max="0.40" step="0.01" value="0.10" />
-      <span class="val" id="baselineV">0.10 m</span>
-    </label>
+      <input type="number" id="baselineMax" step="0.01" value="0.40" />
+    </div>
     <label class="row"><span>sensor</span>
       <select id="sensor">
         <option value="11.313708" selected>1″ format square crop</option>
         <option value="25.4">1″ square</option>
       </select>
     </label>
+    <button type="button" id="resetView">reset view</button>
+    <div class="sub">back to the starting view, looking at the origin</div>
 
     <h2>Detector</h2>
     <label class="row"><span>detections / s</span>
@@ -56,9 +68,10 @@
     <div class="radios">
       <label><input type="radio" name="kind" value="aabb" checked /> axis-aligned box</label>
       <label><input type="radio" name="kind" value="obb" /> oriented box</label>
-      <label><input type="radio" name="kind" value="hull" /> convex hull (from mask)</label>
+      <label><input type="radio" name="kind" value="hull" /> convex hull</label>
+      <label><input type="radio" name="kind" value="mask" /> segmentation mask</label>
     </div>
-    <label class="row"><span>box jitter</span>
+    <label class="row"><span>jitter</span>
       <input type="range" id="jitter" min="0" max="25" step="0.5" value="0" />
       <span class="val" id="jitterV">0 px</span>
     </label>
@@ -78,20 +91,101 @@
       <input type="checkbox" id="armed" checked />
     </label>
 
+    <h2>Trajectory</h2>
+    <label class="stack">mode
+      <select id="trajMode">
+        <option value="manual" selected>manual</option>
+        <option value="canned">canned orbit</option>
+      </select>
+    </label>
+    <div class="btnrow">
+      <button type="button" id="trajPlay">play</button>
+      <button type="button" id="trajPause">pause</button>
+      <button type="button" id="trajReset">reset phase</button>
+    </div>
+    <label class="row"><span>period (s)</span>
+      <input type="number" id="periodN" step="1" value="20" />
+    </label>
+    <div class="tune-ends">
+      <input type="number" id="periodMin" step="1" value="4" />
+      <input type="range" id="period" min="4" max="120" step="1" value="20" />
+      <input type="number" id="periodMax" step="1" value="120" />
+    </div>
+    <label class="row"><span>semi-major (m)</span>
+      <input type="number" id="semiMajorN" step="0.1" value="2.5" />
+    </label>
+    <div class="tune-ends">
+      <input type="number" id="semiMajorMin" step="0.1" value="0.5" />
+      <input type="range" id="semiMajor" min="0.5" max="8" step="0.1" value="2.5" />
+      <input type="number" id="semiMajorMax" step="0.1" value="8" />
+    </div>
+    <label class="row"><span>eccentricity</span>
+      <input type="number" id="eccN" step="0.01" value="0" />
+    </label>
+    <div class="tune-ends">
+      <input type="number" id="eccMin" step="0.01" value="0" />
+      <input type="range" id="ecc" min="0" max="0.95" step="0.01" value="0" />
+      <input type="number" id="eccMax" step="0.01" value="0.95" />
+    </div>
+    <label class="row"><span>offset x (m)</span>
+      <input type="number" id="offXN" step="0.05" value="0" />
+    </label>
+    <div class="tune-ends">
+      <input type="number" id="offXMin" step="0.05" value="-3" />
+      <input type="range" id="offX" min="-3" max="3" step="0.05" value="0" />
+      <input type="number" id="offXMax" step="0.05" value="3" />
+    </div>
+    <label class="row"><span>offset y (m)</span>
+      <input type="number" id="offYN" step="0.05" value="0" />
+    </label>
+    <div class="tune-ends">
+      <input type="number" id="offYMin" step="0.05" value="-3" />
+      <input type="range" id="offY" min="-3" max="3" step="0.05" value="0" />
+      <input type="number" id="offYMax" step="0.05" value="3" />
+    </div>
+    <label class="row"><span>offset z (m)</span>
+      <input type="number" id="offZN" step="0.05" value="0" />
+    </label>
+    <div class="tune-ends">
+      <input type="number" id="offZMin" step="0.05" value="-3" />
+      <input type="range" id="offZ" min="-3" max="3" step="0.05" value="0" />
+      <input type="number" id="offZMax" step="0.05" value="3" />
+    </div>
+    <div class="sub">offset is object position minus orbit center, in meters</div>
+    <label class="row"><span>inclination</span>
+      <input type="range" id="incl" min="-180" max="180" step="1" value="0" />
+      <span class="val" id="inclV">0°</span>
+    </label>
+    <label class="row"><span>ascending node</span>
+      <input type="range" id="asc" min="-180" max="180" step="1" value="0" />
+      <span class="val" id="ascV">0°</span>
+    </label>
+    <label class="row"><span>ingress (s)</span>
+      <input type="number" id="ingressN" step="0.1" value="3" />
+    </label>
+    <div class="tune-ends">
+      <input type="number" id="ingressMin" step="0.1" value="0.5" />
+      <input type="range" id="ingress" min="0.5" max="10" step="0.1" value="3" />
+      <input type="number" id="ingressMax" step="0.1" value="10" />
+    </div>
+    <div class="radios">
+      <label><input type="radio" name="look" value="at_object" checked /> look at object</label>
+      <label><input type="radio" name="look" value="tangent" /> look along tangent</label>
+    </div>
+
     <h2>Overlays</h2>
     <div class="checks">
       <label><input type="checkbox" id="showGtEll" checked /> <span class="swatch gt"></span> ground-truth ellipsoid</label>
-      <label><input type="checkbox" id="showEstEll" checked /> <span class="swatch est"></span> estimated ellipsoid</label>
       <label><input type="checkbox" id="showGtAx" checked /> <span class="swatch gt"></span> ground-truth axes</label>
-      <label><input type="checkbox" id="showEstAx" checked /> <span class="swatch est"></span> estimated axes</label>
       <label><input type="checkbox" id="showGtPath" checked /> <span class="swatch gt"></span> ground-truth path</label>
-      <label><input type="checkbox" id="showEstPath" checked /> <span class="swatch est"></span> estimated path</label>
       <label><input type="checkbox" id="showDet" checked /> last detection</label>
     </div>
 
-    <h2>Estimator</h2>
-    <button class="primary" id="reset">reset pose estimate</button>
-    <div class="sub" style="margin-top:8px">clears solver history; does not move the camera</div>
+    <h2>Stream</h2>
+    <label class="row"><span>record NDJSON</span>
+      <input type="checkbox" id="record" />
+    </label>
+    <button type="button" id="downloadNdjson">download NDJSON</button>
   </aside>
 
   <script type="importmap">

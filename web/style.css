@@ -54,6 +54,10 @@ label.row, .row {
 label.row span, .row span { color: var(--muted); }
 label.stack { display: block; margin: 8px 0 4px; color: var(--muted); }
 input[type="range"] { width: 140px; }
+.tune-ends { display: flex; align-items: center; gap: 6px; margin: -2px 0 8px; }
+.tune-ends input[type="number"] { width: 64px; max-width: 64px; padding: 2px 4px; }
+.tune-ends input[type="range"] { flex: 1; width: auto; min-width: 0; }
+label.row input[type="number"] { width: 88px; max-width: 88px; }
 select, input[type="number"], input[type="file"] {
   background: #0d1018; color: var(--text); border: 1px solid var(--line);
   border-radius: 6px; padding: 4px 6px; max-width: 160px;
@@ -64,6 +68,8 @@ button {
 }
 button.primary { background: #134e4a; border-color: #2dd4bf55; color: var(--accent); }
 button:hover { filter: brightness(1.15); }
+.btnrow { display: flex; gap: 6px; margin: 8px 0; }
+.btnrow button { flex: 1; padding: 6px 4px; }
 .radios, .checks { display: flex; flex-direction: column; gap: 4px; }
 .radios label, .checks label { display: flex; gap: 8px; align-items: center; color: var(--text); }
 .swatch { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }

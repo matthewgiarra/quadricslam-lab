@@ -9,6 +9,7 @@ Hot path is plain NumPy so a later Eigen/C++ port is mechanical:
 
 from __future__ import annotations
 
+import time
 from typing import Optional
 
 import numpy as np
@@ -43,8 +44,12 @@ from .types import (
 
 # Cap the number of views that enter the LM so the demo stays interactive
 # at high detection rates. Oldest views are subsampled, first view is kept.
-MAX_ACTIVE = 48
-MAX_HISTORY = 400
+MAX_ACTIVE = 12
+MAX_HISTORY = 200
+# Only these many recent poses are free variables. Older active views
+# still add residuals, but their poses stay frozen. That keeps LM small
+# (finite-difference Jacobian cost is O(n_params)).
+FREE_POSES = 2
 
 
 def _mono_from_dict(kind: MeasurementType, d: dict) -> MonoMeasurement:
@@ -119,6 +124,7 @@ class QuadricSolver:
         self.ellipsoid: Optional[Ellipsoid] = None
         self.initialized = False
         self.last_rms = 0.0
+        self.last_ms = 0.0
 
     # ------------------------------------------------------------------ init
     def _init_from_first(self, obs: StereoObservation) -> bool:
@@ -183,23 +189,24 @@ class QuadricSolver:
             keep.update(int(i) for i in mid if 0 <= i < n)
         return sorted(keep)
 
+    def _free_pose_indices(self, active: list[int]) -> list[int]:
+        n = len(self.poses)
+        tail = [i for i in range(max(1, n - FREE_POSES), n) if i in active]
+        return tail
+
     def _pack(self, active: list[int]) -> np.ndarray:
         assert self.ellipsoid is not None
         parts = [self.ellipsoid.to_vec()]
-        # pose 0 is locked at identity; pack the rest of the active set
-        for i in active:
-            if i == 0:
-                continue
+        for i in self._free_pose_indices(active):
             parts.append(pose_to_vec(self.poses[i]))
         return np.concatenate(parts)
 
     def _unpack(self, x: np.ndarray, active: list[int]) -> tuple[Ellipsoid, dict[int, np.ndarray]]:
         ell = Ellipsoid.from_vec(x[:9])
-        poses: dict[int, np.ndarray] = {0: self.poses[0]}
+        poses: dict[int, np.ndarray] = {i: self.poses[i] for i in active}
+        poses[0] = self.poses[0]
         k = 9
-        for i in active:
-            if i == 0:
-                continue
+        for i in self._free_pose_indices(active):
             poses[i] = pose_from_vec(x[k : k + 6])
             k += 6
         return ell, poses
@@ -311,11 +318,12 @@ class QuadricSolver:
 
     # ---------------------------------------------------------------- public
     def observe(self, obs: StereoObservation) -> SolverEstimate:
+        t0 = time.perf_counter()
         if not self.initialized:
             if not self._init_from_first(obs):
                 return self.estimate()
-            # A few extra iterations on the first view (ellipsoid only; pose locked)
-            self._refine(max_nfev=20)
+            self._refine(max_nfev=8)
+            self.last_ms = (time.perf_counter() - t0) * 1000.0
             return self.estimate()
 
         T_new = self._init_new_pose(obs)
@@ -323,13 +331,12 @@ class QuadricSolver:
         self.poses.append(T_new)
         self.stamps.append(obs.stamp)
         if len(self.observations) > MAX_HISTORY:
-            # Drop from the middle, keep first and tail
             drop = 4
             del self.observations[3 : 3 + drop]
             del self.poses[3 : 3 + drop]
             del self.stamps[3 : 3 + drop]
-        nfev = 40 if len(self.observations) < 8 else 25
-        self._refine(max_nfev=nfev)
+        self._refine(max_nfev=8)
+        self.last_ms = (time.perf_counter() - t0) * 1000.0
         return self.estimate()
 
     def observe_payload(self, payload: dict) -> SolverEstimate:
@@ -365,6 +372,7 @@ class QuadricSolver:
             "initialized": est.initialized,
             "n_observations": est.n_observations,
             "rms": est.rms,
+            "solve_ms": self.last_ms,
             "ellipsoid": est.ellipsoid.as_dict(),
             "T_cam_from_ell": T_cam_from_ell.tolist(),
             "T_wc_current": T_wl.tolist(),
